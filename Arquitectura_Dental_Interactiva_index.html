@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Arquitectura de URLs — Especialidad Dental — redsalud.cl</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  :root{
+    --bg: #f6f5f2;
+    --panel: #ffffff;
+    --ink: #1b1f24;
+    --ink-soft: #5b6470;
+    --line: #d9dce1;
+    --navy: #14213d;
+    --accent: #c1440e;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Inter', sans-serif;
+
+    --c-sucursales: #2f5ea8;
+    --c-especialidades: #3f7d3f;
+    --c-profesionales: #b8860b;
+    --c-campanas: #c1440e;
+    --c-noticias: #6b3fa0;
+    --c-blog: #b3261e;
+    --c-clinicas-dentales: #1f7a8c;
+    --c-seguros-de-salud: #6e6e6e;
+    --c-informacion-pacientes: #45484c;
+    --c-root: #14213d;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);font-family:var(--sans);color:var(--ink);overflow:hidden;}
+
+  #app{display:flex;flex-direction:column;height:100vh;}
+
+  header{
+    background:var(--navy);
+    color:#fff;
+    padding:14px 22px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:12px;
+    border-bottom:3px solid var(--accent);
+    z-index:5;
+  }
+  header h1{
+    font-size:16px;
+    font-weight:600;
+    margin:0;
+    letter-spacing:0.2px;
+  }
+  header h1 span{
+    display:block;
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:#aab4c8;
+    font-weight:400;
+    margin-top:2px;
+  }
+
+  .controls{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .controls input[type=text]{
+    font-family:var(--mono);
+    font-size:13px;
+    padding:7px 12px;
+    border-radius:6px;
+    border:1px solid #2c3a5e;
+    background:#1c2b4d;
+    color:#fff;
+    width:230px;
+    outline:none;
+  }
+  .controls input[type=text]::placeholder{color:#7e8ba8;}
+  .btn{
+    font-family:var(--sans);
+    font-size:12.5px;
+    font-weight:600;
+    padding:7px 12px;
+    border-radius:6px;
+    border:1px solid #2c3a5e;
+    background:#1c2b4d;
+    color:#fff;
+    cursor:pointer;
+    transition:background .15s;
+  }
+  .btn:hover{background:#28386b;}
+  .counter{
+    font-family:var(--mono);
+    font-size:12px;
+    color:#aab4c8;
+    white-space:nowrap;
+  }
+
+  #canvas-wrap{
+    position:relative;
+    flex:1;
+    overflow:hidden;
+  }
+
+  svg{width:100%;height:100%;display:block;cursor:grab;}
+  svg:active{cursor:grabbing;}
+
+  .link{
+    fill:none;
+    stroke:#c7ccd3;
+    stroke-width:1.4px;
+  }
+  .link.dim{ stroke:#e7e9ec; }
+
+  .node circle{
+    stroke-width:2px;
+    cursor:pointer;
+    transition:r .12s ease;
+  }
+  .node:hover circle{ filter:brightness(0.85); }
+  .node.dim circle{ opacity:.25; }
+  .node.dim text{ opacity:.25; }
+
+  .node text{
+    font-family:var(--mono);
+    font-size:12px;
+    fill:var(--ink);
+    paint-order:stroke;
+    stroke:var(--bg);
+    stroke-width:3px;
+  }
+  .node.leaf text{ fill:#2a2e34; }
+  .node .badge{
+    font-family:var(--sans);
+    font-size:9.5px;
+    font-weight:700;
+    fill:#fff;
+    text-anchor:middle;
+    dominant-baseline:middle;
+    pointer-events:none;
+    stroke:none;
+  }
+  .node.match circle{ stroke:#1b1f24; stroke-width:3px; }
+  .node.match text{ font-weight:700; }
+
+  #legend{
+    position:absolute;
+    bottom:16px;
+    left:16px;
+    background:rgba(255,255,255,.94);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px 14px;
+    font-size:11.5px;
+    display:grid;
+    grid-template-columns:repeat(3,auto);
+    gap:5px 18px;
+    box-shadow:0 4px 14px rgba(0,0,0,.06);
+  }
+  #legend div{display:flex;align-items:center;gap:6px;white-space:nowrap;}
+  #legend span.dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
+
+  #hint{
+    position:absolute;
+    top:14px;
+    left:16px;
+    background:rgba(255,255,255,.94);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:8px 13px;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    box-shadow:0 4px 14px rgba(0,0,0,.06);
+    max-width:260px;
+  }
+
+  #tooltip{
+    position:absolute;
+    pointer-events:none;
+    background:#14213d;
+    color:#fff;
+    padding:10px 13px;
+    border-radius:8px;
+    font-size:12px;
+    max-width:340px;
+    line-height:1.45;
+    box-shadow:0 8px 22px rgba(0,0,0,.25);
+    opacity:0;
+    transition:opacity .1s;
+    z-index:10;
+  }
+  #tooltip .t-url{font-family:var(--mono);color:#9fd0ff;word-break:break-all;font-size:11.5px;}
+  #tooltip .t-title{font-weight:600;margin-bottom:4px;}
+  #tooltip .t-meta{margin-top:6px;color:#c4cbdb;font-size:11px;}
+  #tooltip .t-meta b{color:#fff;}
+
+  #zoom-controls{
+    position:absolute;
+    top:14px;
+    right:16px;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  #zoom-controls button{
+    width:34px;height:34px;
+    border-radius:8px;
+    border:1px solid var(--line);
+    background:#fff;
+    font-size:17px;
+    cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,.06);
+    color:var(--ink);
+  }
+  #zoom-controls button:hover{background:#f0f0ef;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Arquitectura de URLs — Especialidad Dental
+      <span>redsalud.cl · 154 páginas mapeadas</span>
+    </h1>
+    <div class="controls">
+      <input id="search" type="text" placeholder="Buscar URL, slug o título…">
+      <button class="btn" id="expandAll">Expandir todo</button>
+      <button class="btn" id="collapseAll">Colapsar todo</button>
+      <button class="btn" id="resetView">Centrar</button>
+      <span class="counter" id="counter"></span>
+    </div>
+  </header>
+  <div id="canvas-wrap">
+    <svg id="svg"></svg>
+    <div id="hint">Arrastra para mover · rueda / pellizco para hacer zoom · clic en un nodo para expandir o colapsar · clic en una página final abre la URL.</div>
+    <div id="legend"></div>
+    <div id="zoom-controls">
+      <button id="zoomIn">+</button>
+      <button id="zoomOut">–</button>
+    </div>
+    <div id="tooltip"></div>
+  </div>
+</div>
+
+<script>
+const DATA = {"name": "redsalud.cl", "key": "root", "children": [{"name": "Sucursales", "key": "sucursales", "children": [{"name": "Redsalud Agustinas", "key": "https://www.redsalud.cl/sucursales/redsalud-agustinas", "url": "https://www.redsalud.cl/sucursales/redsalud-agustinas", "title": "RedSalud Agustinas | RedSalud", "h1": "RedSalud Agustinas", "clics": 357.0, "impresiones": 9129.0, "posicion": 6.51}, {"name": "Redsalud Alameda", "key": "https://www.redsalud.cl/sucursales/redsalud-alameda", "url": "https://www.redsalud.cl/sucursales/redsalud-alameda", "title": "Centro Médico y Dental RedSalud Alameda", "h1": "RedSalud Alameda", "clics": 9801.0, "impresiones": 160873.0, "posicion": 5.38}, {"name": "Redsalud Apoquindo", "key": "https://www.redsalud.cl/sucursales/redsalud-apoquindo", "url": "https://www.redsalud.cl/sucursales/redsalud-apoquindo", "title": "Sucursal RedSalud Apoquindo", "h1": "RedSalud Apoquindo", "clics": 780.0, "impresiones": 44758.0, "posicion": 4.1}, {"name": "Redsalud Arauco", "key": "https://www.redsalud.cl/sucursales/redsalud-arauco", "url": "https://www.redsalud.cl/sucursales/redsalud-arauco", "title": "Sucursal RedSalud Arauco", "h1": "RedSalud Arauco (Parque Arauco)", "clics": 8618.0, "impresiones": 293181.0, "posicion": 3.7}, {"name": "Redsalud Arica", "key": "https://www.redsalud.cl/sucursales/redsalud-arica", "url": "https://www.redsalud.cl/sucursales/redsalud-arica", "title": "Clínica Dental RedSalud Arica", "h1": "RedSalud Arica", "clics": 840.0, "impresiones": 10218.0, "posicion": 3.75}, {"name": "Redsalud Chillan", "key": "https://www.redsalud.cl/sucursales/redsalud-chillan", "url": "https://www.redsalud.cl/sucursales/redsalud-chillan", "title": "Centro Médico RedSalud Chillán", "h1": "RedSalud Chillán", "clics": 26606.0, "impresiones": 303708.0, "posicion": 3.9}, {"name": "Redsalud Copiapo", "key": "https://www.redsalud.cl/sucursales/redsalud-copiapo", "url": "https://www.redsalud.cl/sucursales/redsalud-copiapo", "title": "Sucursal RedSalud Copiapó", "h1": "RedSalud Copiapó", "clics": 1258.0, "impresiones": 32662.0, "posicion": 4.1}, {"name": "Redsalud Huechuraba", "key": "https://www.redsalud.cl/sucursales/redsalud-huechuraba", "url": "https://www.redsalud.cl/sucursales/redsalud-huechuraba", "title": "Clínica Dental RedSalud Huechuraba", "h1": "RedSalud Huechuraba", "clics": 630.0, "impresiones": 9316.0, "posicion": 5.38}, {"name": "Redsalud Independencia", "key": "https://www.redsalud.cl/sucursales/redsalud-independencia", "url": "https://www.redsalud.cl/sucursales/redsalud-independencia", "title": "Sucursal RedSalud Independencia (Dental)", "h1": "RedSalud Independencia (Dental)", "clics": 274.0, "impresiones": 20143.0, "posicion": 6.89}, {"name": "Redsalud Kennedy", "key": "https://www.redsalud.cl/sucursales/redsalud-kennedy", "url": "https://www.redsalud.cl/sucursales/redsalud-kennedy", "title": "Clínica Dental RedSalud Kennedy", "h1": "RedSalud Kennedy", "clics": 330.0, "impresiones": 5850.0, "posicion": 5.47}, {"name": "Redsalud La Dehesa", "key": "https://www.redsalud.cl/sucursales/redsalud-la-dehesa", "url": "https://www.redsalud.cl/sucursales/redsalud-la-dehesa", "title": "Sucursal RedSalud La Dehesa", "h1": "RedSalud La Dehesa", "clics": 932.0, "impresiones": 32101.0, "posicion": 3.6}, {"name": "Redsalud La Reina", "key": "https://www.redsalud.cl/sucursales/redsalud-la-reina", "url": "https://www.redsalud.cl/sucursales/redsalud-la-reina", "title": "Sucursal RedSalud La Reina", "h1": "RedSalud La Reina", "clics": 434.0, "impresiones": 16526.0, "posicion": 5.1}, {"name": "Redsalud Maipu", "key": "https://www.redsalud.cl/sucursales/redsalud-maipu", "url": "https://www.redsalud.cl/sucursales/redsalud-maipu", "title": "Conoce el Centro Médico y Dental RedSalud Maipú", "h1": "RedSalud Maipú", "clics": 13493.0, "impresiones": 565211.0, "posicion": 2.66}, {"name": "Redsalud Manuel Montt", "key": "https://www.redsalud.cl/sucursales/redsalud-manuel-montt", "url": "https://www.redsalud.cl/sucursales/redsalud-manuel-montt", "title": "Clínica Dental RedSalud Manuel Montt", "h1": "RedSalud Manuel Montt", "clics": 391.0, "impresiones": 24315.0, "posicion": 7.67}, {"name": "Redsalud Nuble", "key": "https://www.redsalud.cl/sucursales/redsalud-nuble", "url": "https://www.redsalud.cl/sucursales/redsalud-nuble", "title": "Sucursal RedSalud Ñuble (Dental)", "h1": "RedSalud Ñuble (Dental)", "clics": 534.0, "impresiones": 51493.0, "posicion": 6.43}, {"name": "Redsalud Ovalle", "key": "https://www.redsalud.cl/sucursales/redsalud-ovalle", "url": "https://www.redsalud.cl/sucursales/redsalud-ovalle", "title": "Sucursal RedSalud Ovalle", "h1": "RedSalud Ovalle", "clics": 1121.0, "impresiones": 25043.0, "posicion": 3.7}, {"name": "Redsalud Penalolen", "key": "https://www.redsalud.cl/sucursales/redsalud-penalolen", "url": "https://www.redsalud.cl/sucursales/redsalud-penalolen", "title": "Clínica Dental RedSalud Peñalolén", "h1": "RedSalud Peñalolén", "clics": 485.0, "impresiones": 9996.0, "posicion": 6.75}, {"name": "Redsalud Plaza Puente Alto", "key": "https://www.redsalud.cl/sucursales/redsalud-plaza-puente-alto", "url": "https://www.redsalud.cl/sucursales/redsalud-plaza-puente-alto", "title": "Sucursal RedSalud Plaza Puente Alto", "h1": "RedSalud Plaza Puente Alto", "clics": 959.0, "impresiones": 47189.0, "posicion": 4.9}, {"name": "Redsalud Puenta Arenas", "key": "https://www.redsalud.cl/sucursales/redsalud-puenta-arenas", "url": "https://www.redsalud.cl/sucursales/redsalud-puenta-arenas", "title": "Clínica Dental RedSalud Punta Arenas", "h1": "RedSalud Punta Arenas (Dental)", "clics": 559.0, "impresiones": 43765.0, "posicion": 5.64}, {"name": "Redsalud Quilpue", "key": "https://www.redsalud.cl/sucursales/redsalud-quilpue", "url": "https://www.redsalud.cl/sucursales/redsalud-quilpue", "title": "Clínica Dental RedSalud Quilpué", "h1": "RedSalud Quilpué", "clics": 1468.0, "impresiones": 50804.0, "posicion": 3.3}, {"name": "Redsalud Talca", "key": "https://www.redsalud.cl/sucursales/redsalud-talca", "url": "https://www.redsalud.cl/sucursales/redsalud-talca", "title": "Clínica Dental RedSalud Talca", "h1": "RedSalud Talca", "clics": 2157.0, "impresiones": 38637.0, "posicion": 4.0}]}, {"name": "Especialidades", "key": "especialidades", "children": [{"name": "Caries", "key": "https://www.redsalud.cl/especialidades/caries", "url": "https://www.redsalud.cl/especialidades/caries", "title": "Caries: Descripción clínica", "h1": "Caries Dental", "clics": 8.0, "impresiones": 2179.0, "posicion": 12.3}, {"name": "Cirugia Maxilofacial", "key": "https://www.redsalud.cl/especialidades/cirugia-maxilofacial", "url": "https://www.redsalud.cl/especialidades/cirugia-maxilofacial", "title": "Cirugía Maxilofacial en RedSalud", "h1": "Cirugia maxilofacial", "clics": 2456.0, "impresiones": 77300.0, "posicion": 4.31}, {"name": "Disfuncion Dental", "key": "https://www.redsalud.cl/especialidades/disfuncion-dental", "url": "https://www.redsalud.cl/especialidades/disfuncion-dental", "title": "Disfunción Dental: Especiaidad en RedSalud", "h1": "Disfunción dental: TTM y dolor orofacial", "clics": 2388.0, "impresiones": 50986.0, "posicion": 5.64}, {"name": "Endodoncia", "key": "https://www.redsalud.cl/especialidades/endodoncia", "url": "https://www.redsalud.cl/especialidades/endodoncia", "title": "Endodoncia: Especialidad en RedSalud", "h1": "Endodoncia", "clics": 481.0, "impresiones": 24341.0, "posicion": 6.54}, {"name": "Implantes Dentales", "key": "https://www.redsalud.cl/especialidades/implantes-dentales", "url": "https://www.redsalud.cl/especialidades/implantes-dentales", "title": "Implantes Dentales en RedSalud", "h1": "Implantes Dentales", "clics": 1783.0, "impresiones": 99213.0, "posicion": 5.88}, {"name": "Kinesiologia Maxilofacial", "key": "https://www.redsalud.cl/especialidades/kinesiologia-maxilofacial", "url": "https://www.redsalud.cl/especialidades/kinesiologia-maxilofacial", "title": "Kinesiología Maxilofacial en RedSalud", "h1": "Kinesiologia maxilofacial", "clics": 719.0, "impresiones": 15108.0, "posicion": 4.34}, {"name": "Odontologia General", "key": "https://www.redsalud.cl/especialidades/odontologia-general", "url": "https://www.redsalud.cl/especialidades/odontologia-general", "title": "Odontología General en RedSalud", "h1": "Odontología general", "clics": 510.0, "impresiones": 96202.0, "posicion": 6.33}, {"name": "Odontopediatria", "key": "https://www.redsalud.cl/especialidades/odontopediatria", "url": "https://www.redsalud.cl/especialidades/odontopediatria", "title": "Odontopediatría: Especialidad en RedSalud", "h1": "Odontopediatría", "clics": 1381.0, "impresiones": 66129.0, "posicion": 10.03}, {"name": "Ortodoncia", "key": "https://www.redsalud.cl/especialidades/ortodoncia", "url": "https://www.redsalud.cl/especialidades/ortodoncia", "title": "Ortodoncia: Especialidad en RedSalud", "h1": "Ortodoncia", "clics": 836.0, "impresiones": 91848.0, "posicion": 6.9}, {"name": "Oxido Nitroso Sedacion Dental Consciente", "key": "https://www.redsalud.cl/especialidades/oxido-nitroso-sedacion-dental-consciente", "url": "https://www.redsalud.cl/especialidades/oxido-nitroso-sedacion-dental-consciente", "title": "Sedación Dental con Óxido Nitroso en RedSalud", "h1": "Óxido Nitroso Sedación Dental Consciente", "clics": 216.0, "impresiones": 9623.0, "posicion": 5.82}, {"name": "Periodoncia", "key": "https://www.redsalud.cl/especialidades/periodoncia", "url": "https://www.redsalud.cl/especialidades/periodoncia", "title": "Periodoncia: Especialidad en RedSalud", "h1": "Periodoncia", "clics": 854.0, "impresiones": 64628.0, "posicion": 6.92}, {"name": "Rehabilitacion Oral", "key": "https://www.redsalud.cl/especialidades/rehabilitacion-oral", "url": "https://www.redsalud.cl/especialidades/rehabilitacion-oral", "title": "Rehabilitación oral en RedSalud", "h1": "Rehabilitación oral", "clics": 179.0, "impresiones": 11036.0, "posicion": 7.6}]}, {"name": "Profesionales", "key": "profesionales", "children": [{"name": "Odontologia General", "key": "profesionales/odontologia-general", "children": [{"name": "Dr Flavio Augusto Castelli Robles", "key": "https://www.redsalud.cl/profesionales/odontologia-general/dr-flavio-augusto-castelli-robles", "url": "https://www.redsalud.cl/profesionales/odontologia-general/dr-flavio-augusto-castelli-robles", "title": "Dentista Flavio Augusto Castelli Robles, Odontología general", "h1": "Dr. Flavio Augusto Castelli Robles", "clics": 0, "impresiones": 0, "posicion": 0}, {"name": "Dra Antonia Ignacia Sagredo Arata", "key": "https://www.redsalud.cl/profesionales/odontologia-general/dra-antonia-ignacia-sagredo-arata", "url": "https://www.redsalud.cl/profesionales/odontologia-general/dra-antonia-ignacia-sagredo-arata", "title": "Dentista Antonia Ignacia Sagredo Arata, Odontología general", "h1": "Dra. Antonia Ignacia Sagredo Arata", "clics": 24.0, "impresiones": 90.0, "posicion": 3.3}, {"name": "Dra Camila Skoknic Krauss", "key": "https://www.redsalud.cl/profesionales/odontologia-general/dra-camila-skoknic-krauss", "url": "https://www.redsalud.cl/profesionales/odontologia-general/dra-camila-skoknic-krauss", "title": 403.0, "h1": "", "clics": 0, "impresiones": 0, "posicion": 0}, {"name": "Dra Carolina Pattillo Garcia", "key": "https://www.redsalud.cl/profesionales/odontologia-general/dra-carolina-pattillo-garcia", "url": "https://www.redsalud.cl/profesionales/odontologia-general/dra-carolina-pattillo-garcia", "title": 403.0, "h1": "", "clics": 0, "impresiones": 0, "posicion": 0}, {"name": "Dra Erika Patricia Gonzalez Wittig", "key": "https://www.redsalud.cl/profesionales/odontologia-general/dra-erika-patricia-gonzalez-wittig", "url": "https://www.redsalud.cl/profesionales/odontologia-general/dra-erika-patricia-gonzalez-wittig", "title": "Dentista Erika Patricia González Wittig, Odontología general", "h1": "Dra. Erika Patricia González Wittig", "clics": 9.0, "impresiones": 75.0, "posicion": 9.7}, {"name": "Dra Maria Fernanda De La Barra Aranda", "key": "https://www.redsalud.cl/profesionales/odontologia-general/dra-maria-fernanda-de-la-barra-aranda", "url": "https://www.redsalud.cl/profesionales/odontologia-general/dra-maria-fernanda-de-la-barra-aranda", "title": "Dentista María Fernanda De La Barra Aranda, Odontología general", "h1": "Dra. María Fernanda De La Barra Aranda", "clics": 14.0, "impresiones": 132.0, "posicion": 6.0}]}, {"name": "Cirugia De Cabeza Y Cuello Y Maxilofacial", "key": "profesionales/cirugia-de-cabeza-y-cuello-y-maxilofacial", "children": [{"name": "Dra Alejandra Patricia Gallego Cifuentes", "key": "https://www.redsalud.cl/profesionales/cirugia-de-cabeza-y-cuello-y-maxilofacial/dra-alejandra-patricia-gallego-cifuentes", "url": "https://www.redsalud.cl/profesionales/cirugia-de-cabeza-y-cuello-y-maxilofacial/dra-alejandra-patricia-gallego-cifuentes", "title": "Médico Alejandra Patricia Gallego Cifuentes, Cirugía de cabeza y cuello y maxilofacial", "h1": "Dra. Alejandra Patricia Gallego Cifuentes", "clics": 92.0, "impresiones": 402.0, "posicion": 4.0}]}, {"name": "Ortodoncia", "key": "profesionales/ortodoncia", "children": [{"name": "Dra Macarena Gimenez", "key": "https://www.redsalud.cl/profesionales/ortodoncia/dra-macarena-gimenez", "url": "https://www.redsalud.cl/profesionales/ortodoncia/dra-macarena-gimenez", "title": "Dentista Macarena Gimenez, Ortodoncia", "h1": "Dra. Macarena Gimenez", "clics": 2.0, "impresiones": 3.0, "posicion": 1.7}]}, {"name": "Periodoncia", "key": "profesionales/periodoncia", "children": [{"name": "Dra Carolina Alejandra Andrade Vasquez", "key": "https://www.redsalud.cl/profesionales/periodoncia/dra-carolina-alejandra-andrade-vasquez", "url": "https://www.redsalud.cl/profesionales/periodoncia/dra-carolina-alejandra-andrade-vasquez", "title": "Dentista Carolina Alejandra Andrade Vásquez, Periodoncia", "h1": "Dra. Carolina Alejandra Andrade Vásquez", "clics": 20.0, "impresiones": 246.0, "posicion": 4.9}]}, {"name": "Trastornos Temporomandibulares Y Dolor Orofacial", "key": "profesionales/trastornos-temporomandibulares-y-dolor-orofacial", "children": [{"name": "Dr Ignacio Jose Naranjo Vercellino", "key": "https://www.redsalud.cl/profesionales/trastornos-temporomandibulares-y-dolor-orofacial/dr-ignacio-jose-naranjo-vercellino", "url": "https://www.redsalud.cl/profesionales/trastornos-temporomandibulares-y-dolor-orofacial/dr-ignacio-jose-naranjo-vercellino", "title": "Ondontólogo Ignacio Naranjo, experto temporomandibular", "h1": "Dr. Ignacio José Naranjo Vercellino", "clics": 61.0, "impresiones": 381.0, "posicion": 5.5}]}]}, {"name": "Campañas", "key": "campanas", "children": [{"name": "Alineadores Invisibles Redsalud", "key": "https://www.redsalud.cl/campanas/alineadores-invisibles-redsalud", "url": "https://www.redsalud.cl/campanas/alineadores-invisibles-redsalud", "title": "Alineadores Invisibles en RedSalud", "h1": "Alineadores Invisibles", "clics": 868.0, "impresiones": 44201.0, "posicion": 6.73}, {"name": "Blanqueamiento Dental Full", "key": "https://www.redsalud.cl/campanas/blanqueamiento-dental-full", "url": "https://www.redsalud.cl/campanas/blanqueamiento-dental-full", "title": "Blanqueamiento Dental Full en RedSalud", "h1": "Blanqueamiento Dental Full", "clics": 6831.0, "impresiones": 103008.0, "posicion": 4.93}, {"name": "Caries Tratalas Y Prevenlas En Redsalud", "key": "https://www.redsalud.cl/campanas/caries-tratalas-y-prevenlas-en-redsalud", "url": "https://www.redsalud.cl/campanas/caries-tratalas-y-prevenlas-en-redsalud", "title": "¿Caries?: Trátalas y prevénlas en RedSalud", "h1": "Previene y trata caries en RedSalud", "clics": 32.0, "impresiones": 469.0, "posicion": 26.9}, {"name": "Clinicas Dentales Redsalud", "key": "https://www.redsalud.cl/campanas/clinicas-dentales-redsalud", "url": "https://www.redsalud.cl/campanas/clinicas-dentales-redsalud", "title": "Conoce las Clínicas Dentales RedSalud", "h1": "Tecnología dental tan avanzada, ¡que parece magia!", "clics": 233.0, "impresiones": 28019.0, "posicion": 8.25}, {"name": "Diagnostico Dental Pro Agenda Tu Evaluacion Hoy", "key": "https://www.redsalud.cl/campanas/diagnostico-dental-pro-agenda-tu-evaluacion-hoy", "url": "https://www.redsalud.cl/campanas/diagnostico-dental-pro-agenda-tu-evaluacion-hoy", "title": "Diagnóstico Dental Pro en Clínicas Dentales RedSalud", "h1": "Diagnóstico Dental Pro: Cuida tu sonrisa desde el primer paso", "clics": 1604.0, "impresiones": 100976.0, "posicion": 11.77}, {"name": "Higiene Dental", "key": "https://www.redsalud.cl/campanas/higiene-dental", "url": "https://www.redsalud.cl/campanas/higiene-dental", "title": "Higiene Dental en RedSalud", "h1": "Higiene Dental", "clics": 5027.0, "impresiones": 105955.0, "posicion": 8.5}, {"name": "Implante Dental Unitario", "key": "https://www.redsalud.cl/campanas/implante-dental-unitario", "url": "https://www.redsalud.cl/campanas/implante-dental-unitario", "title": "Implantes Dentales Unitarios en RedSalud", "h1": "Tu salud bucal es prioridad: Agenda tu evaluación hoy", "clics": 579.0, "impresiones": 42961.0, "posicion": 8.49}, {"name": "Ortodoncia Redsalud", "key": "https://www.redsalud.cl/campanas/ortodoncia-redsalud", "url": "https://www.redsalud.cl/campanas/ortodoncia-redsalud", "title": "Conoce los Planes de Ortodoncia en RedSalud", "h1": "Una mejor sonrisa comienza en RedSalud", "clics": 1969.0, "impresiones": 85933.0, "posicion": 6.67}, {"name": "Oxido Nitroso Sedacion Consciente", "key": "https://www.redsalud.cl/campanas/oxido-nitroso-sedacion-consciente", "url": "https://www.redsalud.cl/campanas/oxido-nitroso-sedacion-consciente", "title": "Óxido Nitroso - Sedación Consciente en RedSalud", "h1": "Óxido Nitroso - Sedación Consciente", "clics": 1213.0, "impresiones": 30071.0, "posicion": 5.42}, {"name": "Salud Dental Diagnostico E Higiene", "key": "https://www.redsalud.cl/campanas/salud-dental-diagnostico-e-higiene", "url": "https://www.redsalud.cl/campanas/salud-dental-diagnostico-e-higiene", "title": "Salud dental: Diagnóstico e Higiene", "h1": "Solo por este mes", "clics": 10.0, "impresiones": 259.0, "posicion": 12.0}]}, {"name": "Noticias", "key": "noticias", "children": [{"name": "2Do Encuentro De Profesionales De Odontologia Redsalud", "key": "https://www.redsalud.cl/noticias/2do-encuentro-de-profesionales-de-odontologia-redsalud", "url": "https://www.redsalud.cl/noticias/2do-encuentro-de-profesionales-de-odontologia-redsalud", "title": "2° Encuentro de Profesionales de Odontología RedSalud", "h1": "Liderazgo en Odontología: Así se vivió el 2° Encuentro de Profesionales de RedSalud", "clics": 11.0, "impresiones": 172.0, "posicion": 7.3}, {"name": "Centros Medicos Y Dentales Redsalud 1Er Lugar En Experiencia De Clientes", "key": "https://www.redsalud.cl/noticias/centros-medicos-y-dentales-redsalud-1er-lugar-en-experiencia-de-clientes", "url": "https://www.redsalud.cl/noticias/centros-medicos-y-dentales-redsalud-1er-lugar-en-experiencia-de-clientes", "title": "RedSalud: 1er lugar en Experiencia de clientes", "h1": "Centros Médicos y Dentales RedSalud: 1er lugar en Experiencia de clientes", "clics": 9.0, "impresiones": 604.0, "posicion": 5.0}, {"name": "Centros Medicos Y Dentales Redsalud Obtienen 1Deg Lugar En Praxis Xperience Index 2025", "key": "https://www.redsalud.cl/noticias/centros-medicos-y-dentales-redsalud-obtienen-1deg-lugar-en-praxis-xperience-index-2025", "url": "https://www.redsalud.cl/noticias/centros-medicos-y-dentales-redsalud-obtienen-1deg-lugar-en-praxis-xperience-index-2025", "title": "RedSalud obtiene el 1° lugar en PXI 2025", "h1": "Centros Médicos y Dentales RedSalud obtienen 1° lugar en Praxis Xperience Index 2025", "clics": 5.0, "impresiones": 115.0, "posicion": 4.9}, {"name": "Nueva Clinica Dental Redsalud Vitacura Excelencia Y Tecnologia", "key": "https://www.redsalud.cl/noticias/nueva-clinica-dental-redsalud-vitacura-excelencia-y-tecnologia", "url": "https://www.redsalud.cl/noticias/nueva-clinica-dental-redsalud-vitacura-excelencia-y-tecnologia", "title": "Nueva Clínica Dental RedSalud Vitacura", "h1": "Nueva Clínica Dental RedSalud Vitacura: excelencia y tecnología para tu sonrisa", "clics": 11.0, "impresiones": 551.0, "posicion": 7.8}, {"name": "Odontogeriatria En Redsalud Atencion Dental Integral Para Mayores De 70", "key": "https://www.redsalud.cl/noticias/odontogeriatria-en-redsalud-atencion-dental-integral-para-mayores-de-70", "url": "https://www.redsalud.cl/noticias/odontogeriatria-en-redsalud-atencion-dental-integral-para-mayores-de-70", "title": "Odontogeriatría: Atención Dental para Personas Mayores", "h1": "Odontogeriatría en RedSalud: Atención dental integral para mayores de 70 años", "clics": 363.0, "impresiones": 9461.0, "posicion": 5.68}, {"name": "Prevencion Dental Cuida Tu Sonrisa Este Verano Con Redsalud", "key": "https://www.redsalud.cl/noticias/prevencion-dental-cuida-tu-sonrisa-este-verano-con-redsalud", "url": "https://www.redsalud.cl/noticias/prevencion-dental-cuida-tu-sonrisa-este-verano-con-redsalud", "title": "Cuida tu sonrisa este verano con RedSalud", "h1": "Prevención dental: cuida tu sonrisa este verano con RedSalud", "clics": 1.0, "impresiones": 165.0, "posicion": 4.7}]}, {"name": "Blog", "key": "blog", "children": [{"name": "Salud Dental", "key": "blog/salud-dental", "children": [{"name": "Radiografía dental: tecnología para un diagnóstico certero", "key": "https://www.redsalud.cl/blog/salud-dental/radiografia-dental-tecnologia-para-un-diagnostico-certero", "url": "https://www.redsalud.cl/blog/salud-dental/radiografia-dental-tecnologia-para-un-diagnostico-certero", "title": "Radiografía dental: Conoce sus características", "h1": "Radiografía dental: tecnología para un diagnóstico certero", "clics": 2388.0, "impresiones": 89831.0, "posicion": 6.38}, {"name": "¿Qué es el GES dental y quiénes pueden acceder a este beneficio?", "key": "https://www.redsalud.cl/blog/salud-dental/que-es-el-ges-dental-y-quienes-pueden-acceder-a-este-beneficio", "url": "https://www.redsalud.cl/blog/salud-dental/que-es-el-ges-dental-y-quienes-pueden-acceder-a-este-beneficio", "title": "Conoce el GES Dental con RedSalud", "h1": "¿Qué es el GES dental y quiénes pueden acceder a este beneficio?", "clics": 2198.0, "impresiones": 77039.0, "posicion": 4.27}, {"name": "Descubre nuestra red de Urgencia Dental", "key": "https://www.redsalud.cl/blog/salud-dental/descubre-nuestra-red-de-urgencia-dental", "url": "https://www.redsalud.cl/blog/salud-dental/descubre-nuestra-red-de-urgencia-dental", "title": "Clínicas Dentales RedSalud: Servicios de urgencia", "h1": "Descubre nuestra red de Urgencia Dental", "clics": 1963.0, "impresiones": 68279.0, "posicion": 7.7}, {"name": "Carillas dentales: cómo funcionan y qué ventajas ofrecen", "key": "https://www.redsalud.cl/blog/salud-dental/carillas-dentales-como-funcionan-y-que-ventajas-ofrecen", "url": "https://www.redsalud.cl/blog/salud-dental/carillas-dentales-como-funcionan-y-que-ventajas-ofrecen", "title": "Carillas Dentales en RedSalud", "h1": "Carillas dentales: cómo funcionan y qué ventajas ofrecen", "clics": 1432.0, "impresiones": 99305.0, "posicion": 6.48}, {"name": "Muelas del juicio, ¿cuándo sacarlas?", "key": "https://www.redsalud.cl/blog/salud-dental/muelas-del-juicio-cuando-sacarlas", "url": "https://www.redsalud.cl/blog/salud-dental/muelas-del-juicio-cuando-sacarlas", "title": "Muelas del Juicio: ¿Cuándo sa sacan?", "h1": "Muelas del juicio, ¿cuándo sacarlas?", "clics": 1392.0, "impresiones": 62068.0, "posicion": 6.1}, {"name": "Endodoncia: todo lo que debes saber sobre el tratamiento de conducto", "key": "https://www.redsalud.cl/blog/salud-dental/endodoncia-cuando-es-necesario-un-tratamiento-de-conducto", "url": "https://www.redsalud.cl/blog/salud-dental/endodoncia-cuando-es-necesario-un-tratamiento-de-conducto", "title": "Endodoncia: información sobre Tratamiento de Conducto", "h1": "Endodoncia: todo lo que debes saber sobre el tratamiento de conducto", "clics": 1120.0, "impresiones": 118864.0, "posicion": 4.01}, {"name": "Muelas del juicio: todo lo que debes saber", "key": "https://www.redsalud.cl/blog/salud-dental/muelas-del-juicio-todo-lo-que-debes-saber", "url": "https://www.redsalud.cl/blog/salud-dental/muelas-del-juicio-todo-lo-que-debes-saber", "title": "Muelas de juicio: entérate de sus características", "h1": "Muelas del juicio: todo lo que debes saber", "clics": 1034.0, "impresiones": 131788.0, "posicion": 5.55}, {"name": "La importancia del destrartraje dental en la higiene bucal", "key": "https://www.redsalud.cl/blog/salud-dental/la-importancia-del-destrartraje-dental-en-la-higiene-bucal", "url": "https://www.redsalud.cl/blog/salud-dental/la-importancia-del-destrartraje-dental-en-la-higiene-bucal", "title": "Limpieza dental con Destartraje en RedSalud", "h1": "La importancia del destrartraje dental en la higiene bucal", "clics": 982.0, "impresiones": 95504.0, "posicion": 4.62}, {"name": "Tapadura dental: definición y qué hacer frente a complicaciones", "key": "https://www.redsalud.cl/blog/salud-dental/tapadura-dental-definicion-y-que-hacer-frente-a-complicaciones", "url": "https://www.redsalud.cl/blog/salud-dental/tapadura-dental-definicion-y-que-hacer-frente-a-complicaciones", "title": "Tapaduras Dentales, definición y consejos", "h1": "Tapadura dental: definición y qué hacer frente a complicaciones", "clics": 828.0, "impresiones": 68107.0, "posicion": 4.23}, {"name": "¿Para qué sirve una radiografía panorámica dental?", "key": "https://www.redsalud.cl/blog/salud-dental/para-que-sirve-una-radiografia-panoramica", "url": "https://www.redsalud.cl/blog/salud-dental/para-que-sirve-una-radiografia-panoramica", "title": "Radiografía panorámica dental en RedSalud", "h1": "¿Para qué sirve una radiografía panorámica dental?", "clics": 826.0, "impresiones": 48167.0, "posicion": 4.93}, {"name": "Aftas Bucales: Síntomas, causas y tratamiento", "key": "https://www.redsalud.cl/blog/salud-dental/aftas-bucales-sintomas-causas-y-tratamiento", "url": "https://www.redsalud.cl/blog/salud-dental/aftas-bucales-sintomas-causas-y-tratamiento", "title": "Aftas bucales en RedSalud", "h1": "Aftas Bucales: Síntomas, causas y tratamiento", "clics": 772.0, "impresiones": 257252.0, "posicion": 5.73}, {"name": "TTM: Conoce los Trastornos Temporomandibulares", "key": "https://www.redsalud.cl/blog/salud-dental/ttm-conoce-los-trastornos-temporomandibulares", "url": "https://www.redsalud.cl/blog/salud-dental/ttm-conoce-los-trastornos-temporomandibulares", "title": "TTM: Trastornos Temporomandibulares en RedSalud", "h1": "TTM: Conoce los Trastornos Temporomandibulares", "clics": 676.0, "impresiones": 37110.0, "posicion": 4.76}, {"name": 403.0, "key": "https://www.redsalud.cl/blog/salud-dental/cuando-acudir-a-urgencia-dental", "url": "https://www.redsalud.cl/blog/salud-dental/cuando-acudir-a-urgencia-dental", "title": 403.0, "h1": "", "clics": 663.0, "impresiones": 44430.0, "posicion": 5.05}, {"name": "Retenedores dentales: qué son, tipos y cuidados esenciales", "key": "https://www.redsalud.cl/blog/salud-dental/retenedores-dentales-que-son-tipos-y-cuidados-esenciales", "url": "https://www.redsalud.cl/blog/salud-dental/retenedores-dentales-que-son-tipos-y-cuidados-esenciales", "title": "Retenedores Dentales: Propósito y funcionalidad", "h1": "Retenedores dentales: qué son, tipos y cuidados esenciales", "clics": 491.0, "impresiones": 48942.0, "posicion": 6.99}, {"name": "Corona Dental: ¿Qué es y para qué se usa?", "key": "https://www.redsalud.cl/blog/salud-dental/corona-dental-que-es-y-para-que-se-usa", "url": "https://www.redsalud.cl/blog/salud-dental/corona-dental-que-es-y-para-que-se-usa", "title": "Coronas dentales: Descubre sus usos con RedSalud", "h1": "Corona Dental: ¿Qué es y para qué se usa?", "clics": 486.0, "impresiones": 51945.0, "posicion": 6.34}, {"name": "Brackets: ¿Cuáles son los mejores?", "key": "https://www.redsalud.cl/blog/salud-dental/brackets-cuales-son-los-mejores", "url": "https://www.redsalud.cl/blog/salud-dental/brackets-cuales-son-los-mejores", "title": "Brackets: ¿Cuáles usar?", "h1": "Brackets: ¿Cuáles son los mejores?", "clics": 409.0, "impresiones": 68835.0, "posicion": 4.74}, {"name": "Conoce el Plan Dental de RedSalud", "key": "https://www.redsalud.cl/blog/salud-dental/conoce-el-plan-dental-de-redsalud", "url": "https://www.redsalud.cl/blog/salud-dental/conoce-el-plan-dental-de-redsalud", "title": "Descubre el Plan Dental de RedSalud", "h1": "Conoce el Plan Dental de RedSalud", "clics": 383.0, "impresiones": 26600.0, "posicion": 5.3}, {"name": "Puente Dental: qué es y cuándo se necesita", "key": "https://www.redsalud.cl/blog/salud-dental/puente-dental-que-es-y-cuando-se-necesita", "url": "https://www.redsalud.cl/blog/salud-dental/puente-dental-que-es-y-cuando-se-necesita", "title": "¿Qué es un puente dental?", "h1": "Puente Dental: qué es y cuándo se necesita", "clics": 347.0, "impresiones": 22310.0, "posicion": 8.11}, {"name": "Bruxismo: Una señal de alerta de otras complicaciones", "key": "https://www.redsalud.cl/blog/salud-dental/bruxismo-una-senal-de-alerta-de-otras-complicaciones", "url": "https://www.redsalud.cl/blog/salud-dental/bruxismo-una-senal-de-alerta-de-otras-complicaciones", "title": "Bruxismo: Una señal de otros problemas mandibulares", "h1": "Bruxismo: Una señal de alerta de otras complicaciones", "clics": 344.0, "impresiones": 53285.0, "posicion": 6.33}, {"name": "Encías retraídas: por qué ocurren y cómo cuidarlas", "key": "https://www.redsalud.cl/blog/salud-dental/encias-retraidas-por-que-ocurren-y-como-cuidarlas", "url": "https://www.redsalud.cl/blog/salud-dental/encias-retraidas-por-que-ocurren-y-como-cuidarlas", "title": "Encías retraídas: ¿Por qué ocurre y cómo solucionarlo?", "h1": "Encías retraídas: por qué ocurren y cómo cuidarlas", "clics": 316.0, "impresiones": 45570.0, "posicion": 6.37}, {"name": "Incrustación dental: ¿Qué es y para qué sirve?", "key": "https://www.redsalud.cl/blog/salud-dental/incrustacion-dental-que-es-y-para-que-sirve", "url": "https://www.redsalud.cl/blog/salud-dental/incrustacion-dental-que-es-y-para-que-sirve", "title": "Incrustaciones Dentales en RedSalud", "h1": "Incrustación dental: ¿Qué es y para qué sirve?", "clics": 306.0, "impresiones": 36073.0, "posicion": 4.55}, {"name": "Sellantes dentales ¿para qué sirven?", "key": "https://www.redsalud.cl/blog/salud-dental/sellantes-dentales-para-que-sirven", "url": "https://www.redsalud.cl/blog/salud-dental/sellantes-dentales-para-que-sirven", "title": "Sellantes en RedSalud", "h1": "Sellantes dentales ¿para qué sirven?", "clics": 287.0, "impresiones": 29076.0, "posicion": 3.74}, {"name": "Radiografías dentales, ¿qué son las intraorales?", "key": "https://www.redsalud.cl/blog/salud-dental/radiografias-dentales-que-son-las-intraorales", "url": "https://www.redsalud.cl/blog/salud-dental/radiografias-dentales-que-son-las-intraorales", "title": "Radiografías dentales, ¿para qué sirven las intraorales?", "h1": "Radiografías dentales, ¿qué son las intraorales?", "clics": 260.0, "impresiones": 37996.0, "posicion": 6.7}, {"name": "Lo que debes saber sobre Prótesis dentales", "key": "https://www.redsalud.cl/blog/salud-dental/cosas-que-debes-saber-sobre-protesis-dentales", "url": "https://www.redsalud.cl/blog/salud-dental/cosas-que-debes-saber-sobre-protesis-dentales", "title": "Lo que debes saber de Prótesis dentales en RedSalud", "h1": "Lo que debes saber sobre Prótesis dentales", "clics": 244.0, "impresiones": 27100.0, "posicion": 6.25}, {"name": "¿Cómo funciona el escáner intraoral?", "key": "https://www.redsalud.cl/blog/salud-dental/como-funciona-el-escaner-intraoral", "url": "https://www.redsalud.cl/blog/salud-dental/como-funciona-el-escaner-intraoral", "title": "¿Cómo funciona el escáner intraoral dental en RedSalud?", "h1": "¿Cómo funciona el escáner intraoral?", "clics": 234.0, "impresiones": 15526.0, "posicion": 7.88}, {"name": "Brackets metálicos o frenillos metálicos", "key": "https://www.redsalud.cl/blog/salud-dental/brackets-metalicos-o-frenillos-metalicos", "url": "https://www.redsalud.cl/blog/salud-dental/brackets-metalicos-o-frenillos-metalicos", "title": "Brackets metálicos o frenillos metálicos en RedSalud", "h1": "Brackets metálicos o frenillos metálicos", "clics": 234.0, "impresiones": 34346.0, "posicion": 6.48}, {"name": "¿Para qué sirve el flúor en los dientes? Protección y prevención", "key": "https://www.redsalud.cl/blog/salud-dental/para-que-sirve-el-fluor-en-los-dientes-proteccion-y-prevencion", "url": "https://www.redsalud.cl/blog/salud-dental/para-que-sirve-el-fluor-en-los-dientes-proteccion-y-prevencion", "title": "Para qué sirve el flúor en los dientes", "h1": "¿Para qué sirve el flúor en los dientes? Protección y prevención", "clics": 221.0, "impresiones": 43840.0, "posicion": 7.77}, {"name": "Descubre cómo un diseño de sonrisa puede mejorar tu confianza", "key": "https://www.redsalud.cl/blog/salud-dental/descubre-como-un-diseno-de-sonrisa-puede-mejorar-tu-confianza", "url": "https://www.redsalud.cl/blog/salud-dental/descubre-como-un-diseno-de-sonrisa-puede-mejorar-tu-confianza", "title": "Diseño de sonrisa en RedSalud", "h1": "Descubre cómo un diseño de sonrisa puede mejorar tu confianza", "clics": 214.0, "impresiones": 18058.0, "posicion": 7.66}, {"name": "Caries dental: tratamientos y prevención", "key": "https://www.redsalud.cl/blog/salud-dental/caries-dental-tratamientos-y-prevencion", "url": "https://www.redsalud.cl/blog/salud-dental/caries-dental-tratamientos-y-prevencion", "title": "Caries dental: causas y prevención en RedSalud", "h1": "Caries dental: tratamientos y prevención", "clics": 199.0, "impresiones": 54814.0, "posicion": 9.1}, {"name": "Óxido Nitroso: ¿Qué es la sedación consciente?", "key": "https://www.redsalud.cl/blog/salud-dental/oxido-nitroso-que-es-la-sedacion-consciente", "url": "https://www.redsalud.cl/blog/salud-dental/oxido-nitroso-que-es-la-sedacion-consciente", "title": "¿Qué es la sedación consciente?", "h1": "Óxido Nitroso: ¿Qué es la sedación consciente?", "clics": 183.0, "impresiones": 14994.0, "posicion": 5.9}, {"name": "Sensibilidad dental: Causas, síntomas y tratamiento", "key": "https://www.redsalud.cl/blog/salud-dental/sensibilidad-dental-causas-sintomas-y-tratamiento", "url": "https://www.redsalud.cl/blog/salud-dental/sensibilidad-dental-causas-sintomas-y-tratamiento", "title": "Sensibilidad Dental: Causas y tratamiento en RedSalud", "h1": "Sensibilidad dental: Causas, síntomas y tratamiento", "clics": 181.0, "impresiones": 42683.0, "posicion": 11.2}, {"name": "Urgencia dental: ¿Qué hacer si Pierdo un Diente?", "key": "https://www.redsalud.cl/blog/salud-dental/que-hacer-si-pierdo-un-diente", "url": "https://www.redsalud.cl/blog/salud-dental/que-hacer-si-pierdo-un-diente", "title": "Urgencia dental: Pérdida o golpe de un diente", "h1": "Urgencia dental: ¿Qué hacer si Pierdo un Diente?", "clics": 179.0, "impresiones": 18057.0, "posicion": 5.6}, {"name": "Absceso dental: Causas, síntomas y tratamiento", "key": "https://www.redsalud.cl/blog/salud-dental/absceso-dental-causas-sintomas-y-tratamiento", "url": "https://www.redsalud.cl/blog/salud-dental/absceso-dental-causas-sintomas-y-tratamiento", "title": "Absceso dental: Causas, síntomas y tratamiento", "h1": "Absceso dental: Causas, síntomas y tratamiento", "clics": 163.0, "impresiones": 43557.0, "posicion": 7.1}, {"name": "Boca seca: qué es la xerostomía y cómo aliviarla", "key": "https://www.redsalud.cl/blog/salud-dental/boca-seca-que-es-xerostomia-como-aliviarla", "url": "https://www.redsalud.cl/blog/salud-dental/boca-seca-que-es-xerostomia-como-aliviarla", "title": "Xerostomía: boca seca y su impacto en la salud oral", "h1": "Boca seca: qué es la xerostomía y cómo aliviarla", "clics": 151.0, "impresiones": 63959.0, "posicion": 9.0}, {"name": "Ortodoncia invisible: lo que siempre quisiste preguntar, respondido por un experto RedSalud", "key": "https://www.redsalud.cl/blog/salud-dental/mejora-tu-su-sonrisa-de-manera-comoda-con-alineadores-invisibles", "url": "https://www.redsalud.cl/blog/salud-dental/mejora-tu-su-sonrisa-de-manera-comoda-con-alineadores-invisibles", "title": "Ortodoncia Invisible en RedSalud", "h1": "Ortodoncia invisible: lo que siempre quisiste preguntar, respondido por un experto RedSalud", "clics": 148.0, "impresiones": 15537.0, "posicion": 7.55}, {"name": "Periodontitis: síntomas y tratamiento que salva tu sonrisa", "key": "https://www.redsalud.cl/blog/salud-dental/periodontitis-sintomas-y-tratamiento-que-salva-tu-sonrisa", "url": "https://www.redsalud.cl/blog/salud-dental/periodontitis-sintomas-y-tratamiento-que-salva-tu-sonrisa", "title": "Periodontitis: síntomas y tratamiento, en RedSalud", "h1": "Periodontitis: síntomas y tratamiento que salva tu sonrisa", "clics": 147.0, "impresiones": 40781.0, "posicion": 8.4}, {"name": "Prótesis e implantes dentales, todo lo que debes saber", "key": "https://www.redsalud.cl/blog/salud-dental/protesis-e-implantes-dentales-todo-lo-que-debes-saber", "url": "https://www.redsalud.cl/blog/salud-dental/protesis-e-implantes-dentales-todo-lo-que-debes-saber", "title": "Prótesis e implantes dentales, lo que debes saber", "h1": "Prótesis e implantes dentales, todo lo que debes saber", "clics": 116.0, "impresiones": 13494.0, "posicion": 10.4}, {"name": "Rehabilitación oral: ¿Conoces esta especialidad dental?", "key": "https://www.redsalud.cl/blog/salud-dental/rehabilitacion-oral-conoces-esta-especialidad-dental", "url": "https://www.redsalud.cl/blog/salud-dental/rehabilitacion-oral-conoces-esta-especialidad-dental", "title": "Conoce la Rehabilitación Oral en RedSalud", "h1": "Rehabilitación oral: ¿Conoces esta especialidad dental?", "clics": 105.0, "impresiones": 10613.0, "posicion": 6.26}, {"name": "Enfermedad periodontal: Gingivitis y Periodontitis", "key": "https://www.redsalud.cl/blog/salud-dental/enfermedad-periodontal-gingivitis-y-periodontitis", "url": "https://www.redsalud.cl/blog/salud-dental/enfermedad-periodontal-gingivitis-y-periodontitis", "title": "Enfermedades periodontales: Gingivitis y Periodontitis", "h1": "Enfermedad periodontal: Gingivitis y Periodontitis", "clics": 104.0, "impresiones": 28352.0, "posicion": 7.2}, {"name": "¿Cómo el embarazo afecta los dientes?", "key": "https://www.redsalud.cl/blog/salud-dental/como-afecta-el-embarazo-mis-dientes", "url": "https://www.redsalud.cl/blog/salud-dental/como-afecta-el-embarazo-mis-dientes", "title": "Salud Dental y Embarazo en RedSalud", "h1": "¿Cómo el embarazo afecta los dientes?", "clics": 89.0, "impresiones": 5655.0, "posicion": 6.75}, {"name": "Hilo dental: descubre sus beneficios y cómo usarlo", "key": "https://www.redsalud.cl/blog/salud-dental/hilo-dental-descubre-sus-beneficios-y-como-usarlo", "url": "https://www.redsalud.cl/blog/salud-dental/hilo-dental-descubre-sus-beneficios-y-como-usarlo", "title": "Cómo usar hilo dental, descúbrelo con RedSalud", "h1": "Hilo dental: descubre sus beneficios y cómo usarlo", "clics": 88.0, "impresiones": 30748.0, "posicion": 7.6}, {"name": "Bruxismo, ¿por qué apretamos o rechinamos los dientes?", "key": "https://www.redsalud.cl/blog/salud-dental/bruxismo-por-que-apretamos-o-rechinamos-los-dientes", "url": "https://www.redsalud.cl/blog/salud-dental/bruxismo-por-que-apretamos-o-rechinamos-los-dientes", "title": "Bruxismo, ¿por qué apretamos los dientes?", "h1": "Bruxismo, ¿por qué apretamos o rechinamos los dientes?", "clics": 87.0, "impresiones": 10919.0, "posicion": 5.48}, {"name": "Brackets cerámicos o de porcelana", "key": "https://www.redsalud.cl/blog/salud-dental/brackets-ceramicos-o-de-porcelana", "url": "https://www.redsalud.cl/blog/salud-dental/brackets-ceramicos-o-de-porcelana", "title": "Brackets cerámicos o de porcelana en RedSalud", "h1": "Brackets cerámicos o de porcelana", "clics": 86.0, "impresiones": 14252.0, "posicion": 5.2}, {"name": "¿Cómo Elegir Cepillo de Dientes?", "key": "https://www.redsalud.cl/blog/salud-dental/como-elegir-cepillo-de-dientes", "url": "https://www.redsalud.cl/blog/salud-dental/como-elegir-cepillo-de-dientes", "title": "¿Cómo Elegir Cepillo de Dientes? Informate con RedSalud", "h1": "¿Cómo Elegir Cepillo de Dientes?", "clics": 80.0, "impresiones": 16431.0, "posicion": 6.4}, {"name": "Halitosis: ¿Qué provoca mal aliento?", "key": "https://www.redsalud.cl/blog/salud-dental/halitosis-que-provoca-mal-aliento", "url": "https://www.redsalud.cl/blog/salud-dental/halitosis-que-provoca-mal-aliento", "title": "Halitosis: ¿Qué provoca mal aliento? En RedSalud", "h1": "Halitosis: ¿Qué provoca mal aliento?", "clics": 78.0, "impresiones": 18912.0, "posicion": 9.4}, {"name": "Odontofobia, te ayudamos a vencer el miedo al dentista", "key": "https://www.redsalud.cl/blog/salud-dental/odontofobia-te-ayudamos-vencer-el-miedo-al-dentista", "url": "https://www.redsalud.cl/blog/salud-dental/odontofobia-te-ayudamos-vencer-el-miedo-al-dentista", "title": "Odontofobia: miedo al dentista", "h1": "Odontofobia, te ayudamos a vencer el miedo al dentista", "clics": 73.0, "impresiones": 3161.0, "posicion": 6.75}, {"name": "¿Por qué en Chile el agua tiene flúor?", "key": "https://www.redsalud.cl/blog/salud-dental/por-que-en-chile-el-agua-tiene-fluor", "url": "https://www.redsalud.cl/blog/salud-dental/por-que-en-chile-el-agua-tiene-fluor", "title": "¿Por qué en Chile el agua tiene flúor?", "h1": "¿Por qué en Chile el agua tiene flúor?", "clics": 70.0, "impresiones": 4621.0, "posicion": 5.36}, {"name": "Anestesia dental: Información para tu tranquilidad y seguridad", "key": "https://www.redsalud.cl/blog/salud-dental/anestesia-dental-informacion-para-tu-tranquilidad-y-seguridad", "url": "https://www.redsalud.cl/blog/salud-dental/anestesia-dental-informacion-para-tu-tranquilidad-y-seguridad", "title": "Anestesia dental, entérate de cómo funciona", "h1": "Anestesia dental: Información para tu tranquilidad y seguridad", "clics": 69.0, "impresiones": 10112.0, "posicion": 7.4}, {"name": "Radiografías dentales, ¿por qué son necesarias?", "key": "https://www.redsalud.cl/blog/salud-dental/radiografias-dentales-por-que-son-necesarias", "url": "https://www.redsalud.cl/blog/salud-dental/radiografias-dentales-por-que-son-necesarias", "title": "Radiografías dentales, ¿por qué son necesarias?", "h1": "Radiografías dentales, ¿por qué son necesarias?", "clics": 65.0, "impresiones": 8536.0, "posicion": 6.13}, {"name": "Alineadores invisibles: ¿qué son y para qué sirven?", "key": "https://www.redsalud.cl/blog/salud-dental/alineadores-invisibles-que-son-y-para-que-sirven", "url": "https://www.redsalud.cl/blog/salud-dental/alineadores-invisibles-que-son-y-para-que-sirven", "title": "Alineadores invisibles: ¿qué son y para qué sirven?", "h1": "Alineadores invisibles: ¿qué son y para qué sirven?", "clics": 59.0, "impresiones": 16824.0, "posicion": 27.72}, {"name": "¿Cuándo usar prótesis removibles?", "key": "https://www.redsalud.cl/blog/salud-dental/cuando-usar-protesis-removibles", "url": "https://www.redsalud.cl/blog/salud-dental/cuando-usar-protesis-removibles", "title": "¿Cuándo usar prótesis removibles?", "h1": "¿Cuándo usar prótesis removibles?", "clics": 58.0, "impresiones": 10113.0, "posicion": 7.25}, {"name": "La importancia del diagnóstico dental", "key": "https://www.redsalud.cl/blog/salud-dental/la-importancia-del-diagnostico-dental", "url": "https://www.redsalud.cl/blog/salud-dental/la-importancia-del-diagnostico-dental", "title": "La importancia del diagnóstico dental en RedSalud", "h1": "La importancia del diagnóstico dental", "clics": 52.0, "impresiones": 10026.0, "posicion": 5.53}, {"name": "¿Qué es el blanqueamiento dental?", "key": "https://www.redsalud.cl/blog/salud-dental/que-es-el-blanqueamiento-dental", "url": "https://www.redsalud.cl/blog/salud-dental/que-es-el-blanqueamiento-dental", "title": "¿Qué es el blanqueamiento dental? RedSalud", "h1": "¿Qué es el blanqueamiento dental?", "clics": 45.0, "impresiones": 8468.0, "posicion": 31.33}, {"name": "La importancia de la Salud Bucal", "key": "https://www.redsalud.cl/blog/salud-dental/la-importancia-de-la-salud-bucal", "url": "https://www.redsalud.cl/blog/salud-dental/la-importancia-de-la-salud-bucal", "title": "Salud Bucal: Conoce su importancia en RedSalud", "h1": "La importancia de la Salud Bucal", "clics": 45.0, "impresiones": 3405.0, "posicion": 8.01}, {"name": "Cuidados dentales en pacientes con cáncer", "key": "https://www.redsalud.cl/blog/salud-dental/cuidados-dentales-en-pacientes-con-cancer", "url": "https://www.redsalud.cl/blog/salud-dental/cuidados-dentales-en-pacientes-con-cancer", "title": "Cuidados dentales en pacientes con cáncer", "h1": "Cuidados dentales en pacientes con cáncer", "clics": 44.0, "impresiones": 1654.0, "posicion": 7.2}, {"name": "Endodoncia: preguntas frecuentes", "key": "https://www.redsalud.cl/blog/salud-dental/endodoncia-preguntas-frecuentes", "url": "https://www.redsalud.cl/blog/salud-dental/endodoncia-preguntas-frecuentes", "title": "Endodoncia: preguntas frecuentes en RedSalud", "h1": "Endodoncia: preguntas frecuentes", "clics": 37.0, "impresiones": 2967.0, "posicion": 3.54}, {"name": "¿Qué es la cirugía ortognática y cuándo es necesaria?", "key": "https://www.redsalud.cl/blog/salud-dental/que-es-la-cirugia-ortognatica-y-cuando-es-necesaria", "url": "https://www.redsalud.cl/blog/salud-dental/que-es-la-cirugia-ortognatica-y-cuando-es-necesaria", "title": "¿Cuál es el propósito de la Cirugía Ortognática?", "h1": "¿Qué es la cirugía ortognática y cuándo es necesaria?", "clics": 36.0, "impresiones": 3067.0, "posicion": 8.2}, {"name": "7 cosas que debes saber sobre el tratamiento de conducto", "key": "https://www.redsalud.cl/blog/salud-dental/7-cosas-que-debes-saber-sobre-el-tratamiento-de-conducto", "url": "https://www.redsalud.cl/blog/salud-dental/7-cosas-que-debes-saber-sobre-el-tratamiento-de-conducto", "title": "Tratamiento de Conducto en RedSalud", "h1": "7 cosas que debes saber sobre el tratamiento de conducto", "clics": 34.0, "impresiones": 6332.0, "posicion": 17.1}, {"name": "¿Cómo prevenir la periodontitis?", "key": "https://www.redsalud.cl/blog/salud-dental/como-prevenir-la-periodontitis", "url": "https://www.redsalud.cl/blog/salud-dental/como-prevenir-la-periodontitis", "title": "¿Cómo prevenir la periodontitis?", "h1": "¿Cómo prevenir la periodontitis?", "clics": 31.0, "impresiones": 2813.0, "posicion": 4.16}, {"name": "Cuidados dentales en pacientes con Diabetes", "key": "https://www.redsalud.cl/blog/salud-dental/cuidados-dentales-en-pacientes-con-diabetes", "url": "https://www.redsalud.cl/blog/salud-dental/cuidados-dentales-en-pacientes-con-diabetes", "title": "Cuidados dentales en pacientes con Diabetes", "h1": "Cuidados dentales en pacientes con Diabetes", "clics": 24.0, "impresiones": 1170.0, "posicion": 7.1}, {"name": "Implante dental: en Clínicas Dentales RedSalud te devolvemos tu sonrisa", "key": "https://www.redsalud.cl/blog/salud-dental/implante-dental-en-clinicas-dentales-redsalud-te-devolvemos-tu-sonrisa", "url": "https://www.redsalud.cl/blog/salud-dental/implante-dental-en-clinicas-dentales-redsalud-te-devolvemos-tu-sonrisa", "title": "Implante dental: En Clínicas Dentales RedSalud", "h1": "Implante dental: en Clínicas Dentales RedSalud te devolvemos tu sonrisa", "clics": 22.0, "impresiones": 6897.0, "posicion": 3.22}, {"name": "¿Un diente dañado puede afectar el corazón?", "key": "https://www.redsalud.cl/blog/salud-dental/un-diente-danado-puede-afectar-el-corazon", "url": "https://www.redsalud.cl/blog/salud-dental/un-diente-danado-puede-afectar-el-corazon", "title": "¿Un diente dañado puede afectar el corazón?", "h1": "¿Un diente dañado puede afectar el corazón?", "clics": 19.0, "impresiones": 3638.0, "posicion": 6.2}, {"name": "Muelas del juicio, mitos y verdades", "key": "https://www.redsalud.cl/blog/salud-dental/muelas-del-juicio-mitos-y-verdades", "url": "https://www.redsalud.cl/blog/salud-dental/muelas-del-juicio-mitos-y-verdades", "title": "Lo que debes saber de las muelas del juicio", "h1": "Muelas del juicio, mitos y verdades", "clics": 19.0, "impresiones": 4286.0, "posicion": 22.2}, {"name": "¿Cuál es la diferencia entre la Ortodoncia Tradicional y Alineadores Invisibles?", "key": "https://www.redsalud.cl/blog/salud-dental/cual-es-la-diferencia-entre-la-ortodoncia-tradicional-y-alineadores-invisibles", "url": "https://www.redsalud.cl/blog/salud-dental/cual-es-la-diferencia-entre-la-ortodoncia-tradicional-y-alineadores-invisibles", "title": "Diferencias: Ortodoncia Tradicional y Alineadores Invisibles", "h1": "¿Cuál es la diferencia entre la Ortodoncia Tradicional y Alineadores Invisibles?", "clics": 18.0, "impresiones": 1907.0, "posicion": 9.5}, {"name": "Viaje en Avión: ¡Me duelen los dientes!", "key": "https://www.redsalud.cl/blog/salud-dental/viaje-en-avion-me-duelen-los-dientes", "url": "https://www.redsalud.cl/blog/salud-dental/viaje-en-avion-me-duelen-los-dientes", "title": "Viaje en avión: ¡Me duelen los dientes!", "h1": "Viaje en Avión: ¡Me duelen los dientes!", "clics": 14.0, "impresiones": 639.0, "posicion": 7.48}, {"name": "Elásticos intermaxilares: ¿Qué son y por qué pueden ser clave en tu ortodoncia?", "key": "https://www.redsalud.cl/blog/salud-dental/elasticos-intermaxilares-que-son-y-por-que-son-claves-en-ortodoncia", "url": "https://www.redsalud.cl/blog/salud-dental/elasticos-intermaxilares-que-son-y-por-que-son-claves-en-ortodoncia", "title": "Elasticos intermaxilares en ortodoncia", "h1": "Elásticos intermaxilares: ¿Qué son y por qué pueden ser clave en tu ortodoncia?", "clics": 13.0, "impresiones": 2989.0, "posicion": 7.5}, {"name": "¿Dientes chuecos?, ¿cuándo usar brackets?", "key": "https://www.redsalud.cl/blog/salud-dental/dientes-chuecos-cuando-usar-brackets", "url": "https://www.redsalud.cl/blog/salud-dental/dientes-chuecos-cuando-usar-brackets", "title": "¿Dientes chuecos?, ¿cuándo usar brackets?", "h1": "¿Dientes chuecos?, ¿cuándo usar brackets?", "clics": 13.0, "impresiones": 9315.0, "posicion": 9.08}, {"name": "3 efectos del alcohol en la salud dental", "key": "https://www.redsalud.cl/blog/salud-dental/3-efectos-del-alcohol-en-la-salud-dental", "url": "https://www.redsalud.cl/blog/salud-dental/3-efectos-del-alcohol-en-la-salud-dental", "title": "3 efectos del alcohol en la salud dental", "h1": "3 efectos del alcohol en la salud dental", "clics": 13.0, "impresiones": 3503.0, "posicion": 5.72}, {"name": "¿Tratamiento de ortodoncia? Encuentra el tuyo en RedSalud", "key": "https://www.redsalud.cl/blog/salud-dental/tratamiento-de-ortodoncia-encuentra-el-tuyo-en-redsalud", "url": "https://www.redsalud.cl/blog/salud-dental/tratamiento-de-ortodoncia-encuentra-el-tuyo-en-redsalud", "title": "¿Tratamiento de ortodoncia? Encuentra el tuyo en RedSalud", "h1": "¿Tratamiento de ortodoncia? Encuentra el tuyo en RedSalud", "clics": 12.0, "impresiones": 2748.0, "posicion": 7.1}, {"name": "Radiografías extraorales: última tecnología en diagnósticos", "key": "https://www.redsalud.cl/blog/salud-dental/radiografias-extraorales-ultima-tecnologia-en-diagnosticos", "url": "https://www.redsalud.cl/blog/salud-dental/radiografias-extraorales-ultima-tecnologia-en-diagnosticos", "title": "Se trata de un procedimiento cómodo y poco invasivo", "h1": "Radiografías extraorales: última tecnología en diagnósticos", "clics": 10.0, "impresiones": 501.0, "posicion": 7.7}, {"name": "¿Dolor al salir una muela del juicio? Todo sobre la pericoronaritis y su tratamiento", "key": "https://www.redsalud.cl/blog/salud-dental/dolor-al-salir-una-muela-del-juicio-todo-sobre-la-pericoronaritis", "url": "https://www.redsalud.cl/blog/salud-dental/dolor-al-salir-una-muela-del-juicio-todo-sobre-la-pericoronaritis", "title": "¿Te molesta una muela del juicio?: Podría ser pericoronaritis", "h1": "¿Dolor al salir una muela del juicio? Todo sobre la pericoronaritis y su tratamiento", "clics": 9.0, "impresiones": 663.0, "posicion": 7.1}, {"name": "¿Qué relación tiene la alimentación y salud bucal?", "key": "https://www.redsalud.cl/blog/salud-dental/que-relacion-tiene-la-alimentacion-y-salud-bucal", "url": "https://www.redsalud.cl/blog/salud-dental/que-relacion-tiene-la-alimentacion-y-salud-bucal", "title": "Relación entre Alimentación y Salud bucal en RedSalud", "h1": "¿Qué relación tiene la alimentación y salud bucal?", "clics": 8.0, "impresiones": 469.0, "posicion": 8.1}, {"name": "¿Existen enfermedades dentales hereditarias?", "key": "https://www.redsalud.cl/blog/salud-dental/existen-enfermedades-dentales-hereditarias", "url": "https://www.redsalud.cl/blog/salud-dental/existen-enfermedades-dentales-hereditarias", "title": "¿Existen enfermedades dentales hereditarias?", "h1": "¿Existen enfermedades dentales hereditarias?", "clics": 7.0, "impresiones": 525.0, "posicion": 5.74}, {"name": "3 Cosas que debes considerar para ir al Dentista", "key": "https://www.redsalud.cl/blog/salud-dental/3-cosas-que-debes-considerar-para-ir-al-dentista", "url": "https://www.redsalud.cl/blog/salud-dental/3-cosas-que-debes-considerar-para-ir-al-dentista", "title": "3 Cosas que debes considerar para ir al dentista", "h1": "3 Cosas que debes considerar para ir al Dentista", "clics": 7.0, "impresiones": 1118.0, "posicion": 4.97}, {"name": "¿Cómo afecta la obesidad a la salud dental?", "key": "https://www.redsalud.cl/blog/salud-dental/como-afecta-la-obesidad-a-la-salud-dental", "url": "https://www.redsalud.cl/blog/salud-dental/como-afecta-la-obesidad-a-la-salud-dental", "title": "Obesidad y Salud Dental en RedSalud", "h1": "¿Cómo afecta la obesidad a la salud dental?", "clics": 6.0, "impresiones": 264.0, "posicion": 4.6}, {"name": "Implante dental, ¿cuándo es necesario?", "key": "https://www.redsalud.cl/blog/salud-dental/implante-dental-cuando-es-necesario", "url": "https://www.redsalud.cl/blog/salud-dental/implante-dental-cuando-es-necesario", "title": "Implante dental, ¿cuándo es necesario?", "h1": "Implante dental, ¿cuándo es necesario?", "clics": 5.0, "impresiones": 1139.0, "posicion": 7.51}, {"name": "¿Cómo crear hábitos dentales en los niños?", "key": "https://www.redsalud.cl/blog/salud-dental/como-crear-habitos-dentales-en-los-ninos", "url": "https://www.redsalud.cl/blog/salud-dental/como-crear-habitos-dentales-en-los-ninos", "title": "¿Cómo crear hábitos dentales en los niños?", "h1": "¿Cómo crear hábitos dentales en los niños?", "clics": 5.0, "impresiones": 408.0, "posicion": 10.7}, {"name": "Blog: Salud Dental", "key": "https://www.redsalud.cl/blog/salud-dental", "url": "https://www.redsalud.cl/blog/salud-dental", "title": "Blog RedSalud: Salud Dental y Oral", "h1": "Blog: Salud Dental", "clics": 5.0, "impresiones": 480.0, "posicion": 17.2}, {"name": "Regreso a clases: Consejos para cuidar los dientes", "key": "https://www.redsalud.cl/blog/salud-dental/regreso-a-clases-consejos-para-cuidar-los-dientes", "url": "https://www.redsalud.cl/blog/salud-dental/regreso-a-clases-consejos-para-cuidar-los-dientes", "title": "Regreso a clases: Consejos para cuidar los dientes", "h1": "Regreso a clases: Consejos para cuidar los dientes", "clics": 3.0, "impresiones": 236.0, "posicion": 20.3}, {"name": "Efectos del cloro de las piscina en los dientes", "key": "https://www.redsalud.cl/blog/salud-dental/temporada-de-piscinas-cuida-tus-dientes", "url": "https://www.redsalud.cl/blog/salud-dental/temporada-de-piscinas-cuida-tus-dientes", "title": "¿Cuál es el efecto del cloro de piscina en los dientes?", "h1": "Efectos del cloro de las piscina en los dientes", "clics": 2.0, "impresiones": 240.0, "posicion": 6.52}, {"name": "¿Sangrado de encías? ¡Visita al periodoncista!", "key": "https://www.redsalud.cl/blog/salud-dental/sangrado-de-encias-visita-al-periodoncista", "url": "https://www.redsalud.cl/blog/salud-dental/sangrado-de-encias-visita-al-periodoncista", "title": "¿Sangrado de encías? ¡Visita al periodoncista!", "h1": "¿Sangrado de encías? ¡Visita al periodoncista!", "clics": 2.0, "impresiones": 475.0, "posicion": 5.79}, {"name": "Los niños y el cuidado de los dientes: guía para padres primerizos", "key": "https://www.redsalud.cl/blog/salud-dental/los-ninos-y-el-cuidado-de-los-dientes-guia-para-padres-primerizos", "url": "https://www.redsalud.cl/blog/salud-dental/los-ninos-y-el-cuidado-de-los-dientes-guia-para-padres-primerizos", "title": "Aprende cómo cuidar la salud dental de los niños", "h1": "Los niños y el cuidado de los dientes: guía para padres primerizos", "clics": 1.0, "impresiones": 263.0, "posicion": 15.56}, {"name": "6 consejos para lograr una higiene dental adecuada", "key": "https://www.redsalud.cl/blog/salud-dental/6-consejos-para-lograr-una-higiene-dental-adecuada", "url": "https://www.redsalud.cl/blog/salud-dental/6-consejos-para-lograr-una-higiene-dental-adecuada", "title": "Consejos para una higiene dental adecuada", "h1": "6 consejos para lograr una higiene dental adecuada", "clics": 1.0, "impresiones": 627.0, "posicion": 14.03}, {"name": "Promoción de salud oral: ¿Cómo crear hábitos efectivos?", "key": "https://www.redsalud.cl/blog/salud-dental/promocion-de-salud-oral-como-crear-habitos-efectivos", "url": "https://www.redsalud.cl/blog/salud-dental/promocion-de-salud-oral-como-crear-habitos-efectivos", "title": "Promoción de salud oral: ¿Cómo crear hábitos efectivos?", "h1": "Promoción de salud oral: ¿Cómo crear hábitos efectivos?", "clics": 0, "impresiones": 545.0, "posicion": 14.5}, {"name": "Incrustaciones Dentales en RedSalud", "key": "https://www.redsalud.cl/blog/salud-dental/incrustacion-dental-que-es-y-para-que-sirve", "url": "https://www.redsalud.cl/blog/salud-dental/incrustacion-dental-que-es-y-para-que-sirve", "title": "Incrustaciones Dentales en RedSalud", "h1": "Incrustaciones Dentales en RedSalud", "clics": 0, "impresiones": 7.0, "posicion": 1.0}, {"name": "¿Cómo cuidar tu salud bucal durante el verano?", "key": "https://www.redsalud.cl/blog/salud-dental/como-cuidar-tu-salud-bucal-durante-el-verano", "url": "https://www.redsalud.cl/blog/salud-dental/como-cuidar-tu-salud-bucal-durante-el-verano", "title": "Cuida tus dientes en verano con RedSalud", "h1": "¿Cómo cuidar tu salud bucal durante el verano?", "clics": 0, "impresiones": 155.0, "posicion": 37.35}]}, {"name": "Salud Infantil y Adolescente", "key": "blog/salud-infantil-y-adolescente", "children": [{"name": "Dientes de leche: cómo influyen en los definitivos", "key": "https://www.redsalud.cl/blog/salud-infantil-y-adolescente/dientes-de-leche-como-influyen-en-los-definitivos", "url": "https://www.redsalud.cl/blog/salud-infantil-y-adolescente/dientes-de-leche-como-influyen-en-los-definitivos", "title": "Dientes de leche: conoce su importancia con RedSalud", "h1": "Dientes de leche: cómo influyen en los definitivos", "clics": 68.0, "impresiones": 38525.0, "posicion": 7.1}, {"name": "Dientes de bebé: Desde la primera señal hasta el cepillado inicial", "key": "https://www.redsalud.cl/blog/salud-infantil-y-adolescente/dientes-de-bebe-lo-que-debes-saber", "url": "https://www.redsalud.cl/blog/salud-infantil-y-adolescente/dientes-de-bebe-lo-que-debes-saber", "title": "¿Cuándo salen los dientes de bebé?: Lo que debes saber", "h1": "Dientes de bebé: Desde la primera señal hasta el cepillado inicial", "clics": 14.0, "impresiones": 10317.0, "posicion": 7.8}, {"name": "Halloween: ¿Cómo cuidar los dientes de los niños?", "key": "https://www.redsalud.cl/blog/salud-infantil-y-adolescente/halloween-como-cuidar-los-dientes-de-los-ninos", "url": "https://www.redsalud.cl/blog/salud-infantil-y-adolescente/halloween-como-cuidar-los-dientes-de-los-ninos", "title": "Halloween: ¿Cómo cuidar los dientes de los niños?", "h1": "Halloween: ¿Cómo cuidar los dientes de los niños?", "clics": 0, "impresiones": 237.0, "posicion": 56.2}]}, {"name": "Alimentación", "key": "blog/alimentacion", "children": [{"name": "La importancia de la salud bucal en pacientes celíacos", "key": "https://www.redsalud.cl/blog/alimentacion/la-importancia-de-la-salud-bucal-en-pacientes-celiacos", "url": "https://www.redsalud.cl/blog/alimentacion/la-importancia-de-la-salud-bucal-en-pacientes-celiacos", "title": "Enfermedad Celiaca y Salud Dental en RedSalud", "h1": "La importancia de la salud bucal en pacientes celíacos", "clics": 8.0, "impresiones": 152.0, "posicion": 5.9}]}, {"name": "Enfermedades y Tratamientos", "key": "blog/enfermedades-y-tratamientos", "children": [{"name": "Cefalea y Bruxismo, ¿qué relación existe?", "key": "https://www.redsalud.cl/blog/enfermedades-y-tratamientos/cefalea-bruxismo-relacion-existe", "url": "https://www.redsalud.cl/blog/enfermedades-y-tratamientos/cefalea-bruxismo-relacion-existe", "title": "Cefalea y bruxismo, ¿qué relación existe?", "h1": "Cefalea y Bruxismo, ¿qué relación existe?", "clics": 31.0, "impresiones": 2989.0, "posicion": 6.3}]}]}, {"name": "Clínicas Dentales", "key": "clinicas-dentales", "children": [{"name": "Clínicas Dentales", "key": "https://www.redsalud.cl/clinicas-dentales", "url": "https://www.redsalud.cl/clinicas-dentales", "title": "Clínicas dentales RedSalud: Líderes en Salud Dental", "h1": "Clínicas Dentales RedSalud", "clics": 7355.0, "impresiones": 526146.0, "posicion": 7.84}, {"name": "Beneficios Dentales", "key": "https://www.redsalud.cl/clinicas-dentales/beneficios-dentales", "url": "https://www.redsalud.cl/clinicas-dentales/beneficios-dentales", "title": "Beneficios Dentales en RedSalud", "h1": "Beneficios dentales RedSalud", "clics": 1241.0, "impresiones": 105534.0, "posicion": 6.67}]}, {"name": "Seguros de Salud", "key": "seguros-de-salud", "children": [{"name": "Plan Preventivo Dental", "key": "https://www.redsalud.cl/seguros-de-salud/plan-preventivo-dental", "url": "https://www.redsalud.cl/seguros-de-salud/plan-preventivo-dental", "title": "Plan Dental Preventivo 65% Soy RedSalud", "h1": "Plan Soy RedSalud Preventivo Dental 65%", "clics": 4268.0, "impresiones": 158972.0, "posicion": 6.39}]}, {"name": "Información Pacientes", "key": "informacion-pacientes", "children": [{"name": "Fonasa Dental", "key": "https://www.redsalud.cl/informacion-pacientes/fonasa-dental", "url": "https://www.redsalud.cl/informacion-pacientes/fonasa-dental", "title": "Beneficios Fonasa en Clínicas Dentales RedSalud", "h1": "Si eres Fonasa, eres parte de Clínicas Dentales RedSalud", "clics": 0, "impresiones": 0, "posicion": 0}]}]};
+
+const colorMap = {
+  root: 'var(--c-root)',
+  sucursales: 'var(--c-sucursales)',
+  especialidades: 'var(--c-especialidades)',
+  profesionales: 'var(--c-profesionales)',
+  campanas: 'var(--c-campanas)',
+  noticias: 'var(--c-noticias)',
+  blog: 'var(--c-blog)',
+  'clinicas-dentales': 'var(--c-clinicas-dentales)',
+  'seguros-de-salud': 'var(--c-seguros-de-salud)',
+  'informacion-pacientes': 'var(--c-informacion-pacientes)',
+};
+function resolveColor(v){ return getComputedStyle(document.documentElement).getPropertyValue(v.replace('var(','').replace(')','')).trim() || v; }
+const legendNames = {
+  sucursales:'Sucursales', especialidades:'Especialidades', profesionales:'Profesionales',
+  campanas:'Campañas', noticias:'Noticias', blog:'Blog', 'clinicas-dentales':'Clínicas Dentales',
+  'seguros-de-salud':'Seguros de Salud', 'informacion-pacientes':'Información Pacientes'
+};
+
+function branchColor(d){
+  let n = d;
+  while(n.depth > 1) n = n.parent;
+  const key = n.data.key;
+  return resolveColor(colorMap[key] || colorMap.root);
+}
+
+const svg = d3.select('#svg');
+const wrap = document.getElementById('canvas-wrap');
+let width = wrap.clientWidth, height = wrap.clientHeight;
+
+const g = svg.append('g');
+const gLinks = g.append('g').attr('class','links');
+const gNodes = g.append('g').attr('class','nodes');
+
+const zoom = d3.zoom().scaleExtent([0.05, 4]).on('zoom', (ev)=>{ g.attr('transform', ev.transform); });
+svg.call(zoom);
+
+const dx = 26, dy = 240;
+const tree = d3.tree().nodeSize([dx, dy]);
+const root = d3.hierarchy(DATA, d => d.children);
+root.x0 = 0; root.y0 = 0;
+
+root.descendants().forEach((d,i)=>{
+  d.id = i;
+  d._children = d.children;
+  if(d.depth >= 2) d.children = null; // collapse beyond level 2 by default
+});
+
+let leafTotal = root.leaves().length;
+document.getElementById('counter').textContent = leafTotal + ' páginas';
+
+function colorFor(d){
+  if(d.depth === 0) return resolveColor(colorMap.root);
+  return branchColor(d);
+}
+
+function update(source){
+  tree(root);
+  const nodes = root.descendants();
+  const links = root.links();
+
+  let left = root, rightMost = root;
+  root.eachBefore(d=>{ if(d.x < left.x) left = d; if(d.x > rightMost.x) rightMost = d; });
+  const heightNeeded = rightMost.x - left.x + 80;
+
+  const transition = svg.transition().duration(380);
+
+  const node = gNodes.selectAll('g.node').data(nodes, d=>d.id);
+
+  const nodeEnter = node.enter().append('g')
+    .attr('class', d => 'node' + (d.children || d._children ? '' : ' leaf'))
+    .attr('transform', d => `translate(${source.y0 ?? d.y},${source.x0 ?? d.x})`)
+    .attr('data-id', d=>d.id)
+    .on('click', (event,d) => {
+      if(d._children){
+        d.children = d.children ? null : d._children;
+        update(d);
+      } else if(d.data.url){
+        window.open(d.data.url, '_blank');
+      }
+    })
+    .on('mouseenter', (event,d)=> showTooltip(event,d))
+    .on('mousemove', (event)=> moveTooltip(event))
+    .on('mouseleave', hideTooltip);
+
+  nodeEnter.append('circle')
+    .attr('r', 0)
+    .attr('fill', d => (d.children || d._children) ? colorFor(d) : '#fff')
+    .attr('stroke', d => colorFor(d));
+
+  nodeEnter.append('text')
+    .attr('dy', '0.32em')
+    .attr('x', d => (d._children ? -10 : 10))
+    .attr('text-anchor', d => d._children ? 'end' : 'start')
+    .text(d => d.data.name)
+    .style('font-weight', d => d.depth <= 1 ? 600 : 400)
+    .style('font-size', d => d.depth === 0 ? '13px' : d.depth===1 ? '12.5px' : '11.5px');
+
+  nodeEnter.filter(d=>d._children && d.children===null)
+    .append('text')
+    .attr('class','badge')
+    .attr('x', -10)
+    .attr('dy', '-0.9em')
+    .text(d => countLeaves(d));
+
+  const nodeUpdate = node.merge(nodeEnter);
+  nodeUpdate.transition(transition)
+    .attr('transform', d => `translate(${d.y},${d.x})`);
+  nodeUpdate.select('circle')
+    .attr('r', d => d.depth===0 ? 9 : (d.children||d._children ? 7 : 4.5))
+    .attr('fill', d => (d.children || d._children) ? colorFor(d) : '#fff')
+    .attr('stroke', d => colorFor(d));
+  nodeUpdate.select('text:not(.badge)')
+    .attr('x', d => (d._children || d.children) ? -10 : 10)
+    .attr('text-anchor', d => (d._children || d.children) ? 'end' : 'start');
+  nodeUpdate.select('.badge').text(d => countLeaves(d));
+
+  node.exit().transition(transition).remove()
+    .attr('transform', d => `translate(${source.y},${source.x})`)
+    .select('circle').attr('r', 0);
+
+  const link = gLinks.selectAll('path.link').data(links, d => d.target.id);
+
+  const linkGen = d3.linkHorizontal().x(d=>d.y).y(d=>d.x);
+
+  const linkEnter = link.enter().append('path')
+    .attr('class','link')
+    .attr('stroke', d => colorFor(d.target))
+    .attr('d', d => {
+      const o = {x: source.x0 ?? d.source.x, y: source.y0 ?? d.source.y};
+      return linkGen({source:o, target:o});
+    });
+
+  link.merge(linkEnter).transition(transition)
+    .attr('d', linkGen)
+    .attr('stroke', d => colorFor(d.target));
+
+  link.exit().transition(transition).remove()
+    .attr('d', d => {
+      const o = {x: source.x, y: source.y};
+      return linkGen({source:o, target:o});
+    });
+
+  root.eachBefore(d => { d.x0 = d.x; d.y0 = d.y; });
+}
+
+function countLeaves(d){
+  let n = d._children || d.children || [];
+  let count = 0;
+  function walk(arr){
+    arr.forEach(c=>{
+      const kids = c._children || c.children;
+      if(kids && kids.length) walk(kids); else count++;
+    });
+  }
+  walk(n);
+  return count;
+}
+
+update(root);
+
+function fitToScreen(animate){
+  width = wrap.clientWidth; height = wrap.clientHeight;
+  const nodes = root.descendants();
+  const xExtent = d3.extent(nodes, d=>d.x);
+  const yExtent = d3.extent(nodes, d=>d.y);
+  const fullW = (yExtent[1]-yExtent[0]) + 260;
+  const fullH = (xExtent[1]-xExtent[0]) + 80;
+  const scale = Math.min(2, Math.min(width/fullW, height/fullH));
+  const tx = 90 - yExtent[0]*scale;
+  const ty = height/2 - ((xExtent[0]+xExtent[1])/2)*scale;
+  const t = d3.zoomIdentity.translate(tx, ty).scale(scale);
+  if(animate) svg.transition().duration(500).call(zoom.transform, t);
+  else svg.call(zoom.transform, t);
+}
+setTimeout(()=>fitToScreen(false), 60);
+
+window.addEventListener('resize', ()=>fitToScreen(true));
+
+document.getElementById('zoomIn').onclick = ()=> svg.transition().duration(200).call(zoom.scaleBy, 1.3);
+document.getElementById('zoomOut').onclick = ()=> svg.transition().duration(200).call(zoom.scaleBy, 1/1.3);
+document.getElementById('resetView').onclick = ()=> fitToScreen(true);
+
+document.getElementById('expandAll').onclick = ()=>{
+  root.each(d=>{ if(d._children) d.children = d._children; });
+  update(root);
+  setTimeout(()=>fitToScreen(true), 400);
+};
+document.getElementById('collapseAll').onclick = ()=>{
+  root.each(d=>{ if(d.depth >= 1 && d._children) d.children = null; });
+  update(root);
+  setTimeout(()=>fitToScreen(true), 400);
+};
+
+// tooltip
+const tooltip = document.getElementById('tooltip');
+function showTooltip(event,d){
+  let html = '';
+  if(d.data.url){
+    html += `<div class="t-title">${escapeHtml(d.data.h1 || d.data.title || d.data.name)}</div>`;
+    html += `<div class="t-url">${d.data.url}</div>`;
+    html += `<div class="t-meta">Clics: <b>${Math.round(d.data.clics||0)}</b> · Impresiones: <b>${Math.round(d.data.impresiones||0)}</b> · Pos. media: <b>${(d.data.posicion||0).toFixed ? d.data.posicion.toFixed(1) : d.data.posicion}</b></div>`;
+  } else {
+    html += `<div class="t-title">${escapeHtml(d.data.name)}</div>`;
+    html += `<div class="t-meta">${countLeaves(d)} páginas en esta rama</div>`;
+  }
+  tooltip.innerHTML = html;
+  tooltip.style.opacity = 1;
+  moveTooltip(event);
+}
+function moveTooltip(event){
+  const rect = wrap.getBoundingClientRect();
+  let x = event.clientX - rect.left + 18;
+  let y = event.clientY - rect.top + 12;
+  if(x + 340 > rect.width) x = event.clientX - rect.left - 350;
+  tooltip.style.left = x+'px';
+  tooltip.style.top = y+'px';
+}
+function hideTooltip(){ tooltip.style.opacity = 0; }
+function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// search
+const searchInput = document.getElementById('search');
+searchInput.addEventListener('input', ()=>{
+  const q = searchInput.value.trim().toLowerCase();
+  if(!q){
+    gNodes.selectAll('g.node').classed('dim', false).classed('match', false);
+    gLinks.selectAll('path.link').classed('dim', false);
+    return;
+  }
+  // expand everything so matches are reachable
+  root.each(d=>{ if(d._children) d.children = d._children; });
+  update(root);
+  setTimeout(()=>{
+    gNodes.selectAll('g.node').each(function(d){
+      const hay = ((d.data.name||'')+' '+(d.data.url||'')+' '+(d.data.title||'')+' '+(d.data.h1||'')).toLowerCase();
+      const isMatch = hay.includes(q);
+      d3.select(this).classed('match', isMatch).classed('dim', !isMatch);
+    });
+    gLinks.selectAll('path.link').classed('dim', d => {
+      const hay = ((d.target.data.name||'')+' '+(d.target.data.url||'')+' '+(d.target.data.title||'')+' '+(d.target.data.h1||'')).toLowerCase();
+      return !hay.includes(q);
+    });
+  }, 420);
+});
+
+// legend
+const legend = document.getElementById('legend');
+Object.keys(legendNames).forEach(k=>{
+  const div = document.createElement('div');
+  div.innerHTML = `<span class="dot" style="background:${resolveColor(colorMap[k])}"></span>${legendNames[k]}`;
+  legend.appendChild(div);
+});
+</script>
+</body>
+</html>
